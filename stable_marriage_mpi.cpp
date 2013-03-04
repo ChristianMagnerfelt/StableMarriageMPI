@@ -4,6 +4,7 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <iterator>
 
 int g_numProcs = 0;
 int g_myId = 0;
@@ -59,16 +60,59 @@ int main(int argc, const char * argv[])
 				}
 			}
 		}
+		std::cerr << "Error : process " << g_myId << " was not matched" << std::endl; 
 	}
 	else
 	{
 		std::cout << "I'm nr " << g_myId << " and I'm a woman" << std::endl;
 		initRank(g_rank);
 
-		bool done = false;
-		while(!done)		
-		{
+		int buffer [2];
+		int current;
+		int offer;
+		MPI_Status status;
 
+		while(true)		
+		{
+			MPI_Recv(buffer, 2, MPI_INT, g_myId, 0, MPI_COMM_WORLD, &status);
+			if(buffer[0] == 0)
+			{
+				++g_numAccepted;
+				if(g_numAccepted == g_rank.size())
+				{
+					return 0;
+				}
+			}
+			else
+			{
+				if(current < 0)
+				{
+					current = buffer[1];
+					buffer[0] = 1;
+					buffer[1] = 1;
+					MPI_Send(buffer, 2, MPI_INT, current, 0, MPI_COMM_WORLD);
+					buffer[0] = 0;
+					// TODO broadcast
+					continue;
+				}
+				offer = buffer[1];
+				if(0 < std::distance(std::find(g_rank.begin(), g_rank.end(), current), 
+					std::find(g_rank.begin(), g_rank.end(), offer)))
+				{
+					buffer[0] = 1;
+					buffer[1] = 1;
+					MPI_Send(buffer, 2, MPI_INT, offer, 0, MPI_COMM_WORLD);
+					buffer[0] = 1;
+					buffer[1] = 0;
+					MPI_Send(buffer, 2, MPI_INT, current, 0, MPI_COMM_WORLD);
+				}
+				else
+				{
+					buffer[0] = 1;
+					buffer[1] = 0;
+					MPI_Send(buffer, 2, MPI_INT, offer, 0, MPI_COMM_WORLD);
+				}
+			}			
 		}
 	}
 	MPI_Finalize();
